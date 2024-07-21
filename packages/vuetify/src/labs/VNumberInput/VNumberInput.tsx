@@ -8,6 +8,7 @@ import { VDivider } from '../../components/VDivider'
 import { makeVTextFieldProps, VTextField } from '@/components/VTextField/VTextField'
 
 // Composables
+import { useForm } from '@/composables/form'
 import { useProxiedModel } from '@/composables/proxiedModel'
 
 // Utilities
@@ -55,8 +56,6 @@ const makeVNumberInputProps = propsFactory({
 export const VNumberInput = genericComponent<VNumberInputSlots>()({
   name: 'VNumberInput',
 
-  inheritAttrs: false,
-
   props: {
     ...makeVNumberInputProps(),
   },
@@ -71,16 +70,24 @@ export const VNumberInput = genericComponent<VNumberInputSlots>()({
     const stepDecimals = computed(() => getDecimals(props.step))
     const modelDecimals = computed(() => model.value != null ? getDecimals(model.value) : 0)
 
+    const form = useForm()
+    const controlsDisabled = computed(() => (
+      props.disabled || props.readonly || form?.isReadonly.value
+    ))
+
     const canIncrease = computed(() => {
+      if (controlsDisabled.value) return false
       if (model.value == null) return true
       return model.value + props.step <= props.max
     })
     const canDecrease = computed(() => {
+      if (controlsDisabled.value) return false
       if (model.value == null) return true
       return model.value - props.step >= props.min
     })
 
     watchEffect(() => {
+      if (controlsDisabled.value) return
       if (model.value != null && (model.value < props.min || model.value > props.max)) {
         model.value = clamp(model.value, props.min, props.max)
       }
@@ -90,11 +97,17 @@ export const VNumberInput = genericComponent<VNumberInputSlots>()({
       return props.hideInput ? 'stacked' : props.controlVariant
     })
 
+    const incrementIcon = computed(() => controlVariant.value === 'split' ? '$plus' : '$collapse')
+    const decrementIcon = computed(() => controlVariant.value === 'split' ? '$minus' : '$expand')
+    const controlNodeSize = computed(() => controlVariant.value === 'split' ? 'default' : 'small')
+    const controlNodeDefaultHeight = computed(() => controlVariant.value === 'stacked' ? 'auto' : '100%')
+
     const incrementSlotProps = computed(() => ({ click: onClickUp }))
 
     const decrementSlotProps = computed(() => ({ click: onClickDown }))
 
     function toggleUpDown (increment = true) {
+      if (controlsDisabled.value) return
       if (model.value == null) {
         model.value = 0
         return
@@ -120,7 +133,7 @@ export const VNumberInput = genericComponent<VNumberInputSlots>()({
 
     function onKeydown (e: KeyboardEvent) {
       if (
-        ['Enter', 'ArrowLeft', 'ArrowRight', 'Backspace', 'Tab'].includes(e.key) ||
+        ['Enter', 'ArrowLeft', 'ArrowRight', 'Backspace', 'Delete', 'Tab'].includes(e.key) ||
         e.ctrlKey
       ) return
 
@@ -152,77 +165,80 @@ export const VNumberInput = genericComponent<VNumberInputSlots>()({
     useRender(() => {
       const { modelValue: _, ...textFieldProps } = VTextField.filterProps(props)
 
+      function incrementControlNode () {
+        return !slots.increment ? (
+          <VBtn
+            disabled={ !canIncrease.value }
+            flat
+            key="increment-btn"
+            height={ controlNodeDefaultHeight.value }
+            name="increment-btn"
+            icon={ incrementIcon.value }
+            onClick={ onClickUp }
+            onMousedown={ onControlMousedown }
+            size={ controlNodeSize.value }
+            tabindex="-1"
+          />
+        ) : (
+          <VDefaultsProvider
+            key="increment-defaults"
+            defaults={{
+              VBtn: {
+                disabled: !canIncrease.value,
+                flat: true,
+                height: controlNodeDefaultHeight.value,
+                size: controlNodeSize.value,
+                icon: incrementIcon.value,
+              },
+            }}
+          >
+            { slots.increment(incrementSlotProps.value) }
+          </VDefaultsProvider>
+        )
+      }
+
+      function decrementControlNode () {
+        return !slots.decrement ? (
+          <VBtn
+            disabled={ !canDecrease.value }
+            flat
+            key="decrement-btn"
+            height={ controlNodeDefaultHeight.value }
+            name="decrement-btn"
+            icon={ decrementIcon.value }
+            size={ controlNodeSize.value }
+            tabindex="-1"
+            onClick={ onClickDown }
+            onMousedown={ onControlMousedown }
+          />
+        ) : (
+          <VDefaultsProvider
+            key="decrement-defaults"
+            defaults={{
+              VBtn: {
+                disabled: !canDecrease.value,
+                flat: true,
+                height: controlNodeDefaultHeight.value,
+                size: controlNodeSize.value,
+                icon: decrementIcon.value,
+              },
+            }}
+          >
+            { slots.decrement(decrementSlotProps.value) }
+          </VDefaultsProvider>
+        )
+      }
+
       function controlNode () {
-        const defaultHeight = controlVariant.value === 'stacked' ? 'auto' : '100%'
         return (
           <div class="v-number-input__control">
-            {
-              !slots.decrement ? (
-                <VBtn
-                  disabled={ !canDecrease.value }
-                  flat
-                  key="decrement-btn"
-                  height={ defaultHeight }
-                  name="decrement-btn"
-                  icon="$expand"
-                  size="small"
-                  tabindex="-1"
-                  onClick={ onClickDown }
-                  onMousedown={ onControlMousedown }
-                />
-              ) : (
-                <VDefaultsProvider
-                  key="decrement-defaults"
-                  defaults={{
-                    VBtn: {
-                      disabled: !canDecrease.value,
-                      flat: true,
-                      height: defaultHeight,
-                      size: 'small',
-                      icon: '$expand',
-                    },
-                  }}
-                >
-                  { slots.decrement(decrementSlotProps.value) }
-                </VDefaultsProvider>
-              )
-            }
+            { decrementControlNode() }
 
             <VDivider
               vertical={ controlVariant.value !== 'stacked' }
             />
 
-            {
-              !slots.increment ? (
-                <VBtn
-                  disabled={ !canIncrease.value }
-                  flat
-                  key="increment-btn"
-                  height={ defaultHeight }
-                  name="increment-btn"
-                  icon="$collapse"
-                  onClick={ onClickUp }
-                  onMousedown={ onControlMousedown }
-                  size="small"
-                  tabindex="-1"
-                />
-              ) : (
-                <VDefaultsProvider
-                  key="increment-defaults"
-                  defaults={{
-                    VBtn: {
-                      disabled: !canIncrease.value,
-                      flat: true,
-                      height: defaultHeight,
-                      size: 'small',
-                      icon: '$collapse',
-                    },
-                  }}
-                >
-                  { slots.increment(incrementSlotProps.value) }
-                </VDefaultsProvider>
-              )
-            }
+            { incrementControlNode() }
           </div>
         )
       }
@@ -237,15 +253,7 @@ export const VNumberInput = genericComponent<VNumberInputSlots>()({
             <div class="v-number-input__control">
               <VDivider vertical />
 
-              <VBtn
-                flat
-                height="100%"
-                icon="$plus"
-                tile
-                tabindex="-1"
-                onClick={ onClickUp }
-                onMousedown={ onControlMousedown }
-              />
+              { incrementControlNode() }
             </div>
           ) : (!props.reverse
             ? <>{ dividerNode() }{ controlNode() }</>
@@ -257,15 +265,7 @@ export const VNumberInput = genericComponent<VNumberInputSlots>()({
         controlVariant.value === 'split'
           ? (
             <div class="v-number-input__control">
-              <VBtn
-                flat
-                height="100%"
-                icon="$minus"
-                tile
-                tabindex="-1"
-                onClick={ onClickDown }
-                onMousedown={ onControlMousedown }
-              />
+              { decrementControlNode() }
 
               <VDivider vertical />
             </div>

@@ -21,7 +21,7 @@ import { provideDefaults } from '@/composables/defaults'
 import { makeFilterProps, useFilter } from '@/composables/filter'
 
 // Utilities
-import { computed, toRef } from 'vue'
+import { computed, toRef, toRefs } from 'vue'
 import { genericComponent, propsFactory, useRender } from '@/util'
 
 // Types
@@ -73,6 +73,7 @@ export type VDataTableSlots<T> = VDataTableRowsSlots<T> & VDataTableHeadersSlots
 export const makeDataTableProps = propsFactory({
   ...makeVDataTableRowsProps(),
 
+  hideDefaultBody: Boolean,
   hideDefaultFooter: Boolean,
   hideDefaultHeader: Boolean,
   width: [String, Number],
@@ -129,6 +130,7 @@ export const VDataTable = genericComponent<new <T extends readonly any[], V>(
     const { groupBy } = createGroupBy(props)
     const { sortBy, multiSort, mustSort } = createSort(props)
     const { page, itemsPerPage } = createPagination(props)
+    const { disableSort } = toRefs(props)
 
     const {
       columns,
@@ -151,10 +153,10 @@ export const VDataTable = genericComponent<new <T extends readonly any[], V>(
     })
 
     const { toggleSort } = provideSort({ sortBy, multiSort, mustSort, page })
-    const { sortByWithGroups, opened, extractRows, isGroupOpen, toggleGroup } = provideGroupBy({ groupBy, sortBy })
+    const { sortByWithGroups, opened, extractRows, isGroupOpen, toggleGroup } = provideGroupBy({ groupBy, sortBy, disableSort })
 
     const { sortedItems } = useSortedItems(props, filteredItems, sortByWithGroups, {
-      transform: item => item.columns,
+      transform: item => ({ ...item.raw, ...item.columns }),
       sortFunctions,
       sortRawFunctions,
     })
@@ -251,18 +253,20 @@ export const VDataTable = genericComponent<new <T extends readonly any[], V>(
                   </thead>
                 )}
                 { slots.thead?.(slotProps.value) }
-                <tbody>
-                  { slots['body.prepend']?.(slotProps.value) }
-                  { slots.body ? slots.body(slotProps.value) : (
-                    <VDataTableRows
-                      { ...attrs }
-                      { ...dataTableRowsProps }
-                      items={ paginatedItems.value }
-                      v-slots={ slots }
-                    />
-                  )}
-                  { slots['body.append']?.(slotProps.value) }
-                </tbody>
+                { !props.hideDefaultBody && (
+                  <tbody>
+                    { slots['body.prepend']?.(slotProps.value) }
+                    { slots.body ? slots.body(slotProps.value) : (
+                      <VDataTableRows
+                        { ...attrs }
+                        { ...dataTableRowsProps }
+                        items={ paginatedItems.value }
+                        v-slots={ slots }
+                      />
+                    )}
+                    { slots['body.append']?.(slotProps.value) }
+                  </tbody>
+                )}
                 { slots.tbody?.(slotProps.value) }
                 { slots.tfoot?.(slotProps.value) }
               </>
